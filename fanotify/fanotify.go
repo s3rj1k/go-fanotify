@@ -26,95 +26,137 @@ import (
 // Flags used as first parameter to Initiliaze
 const (
 	/* flags used for fanotify_init() */
-	FAN_CLOEXEC  = 0x00000001
-	FAN_NONBLOCK = 0x00000002
 
-	/* These are NOT bitwise flags.  Both bits are used togther.  */
-	FAN_CLASS_NOTIF       = 0x00000000
-	FAN_CLASS_CONTENT     = 0x00000004
-	FAN_CLASS_PRE_CONTENT = 0x00000008
+	// FAN_CLOEXEC
+	FanCloExec = 0x00000001
+	// FAN_NONBLOCK
+	FanNonBlock = 0x00000002
 
-	FAN_ALL_CLASS_BITS = FAN_CLASS_NOTIF |
-		FAN_CLASS_CONTENT |
-		FAN_CLASS_PRE_CONTENT
+	/* These are NOT bitwise flags. Both bits are used togther. */
 
-	FAN_UNLIMITED_QUEUE = 0x00000010
-	FAN_UNLIMITED_MARKS = 0x00000020
+	// FAN_CLASS_NOTIF
+	FanClassNotif = 0x00000000
+	// FAN_CLASS_CONTENT
+	FanClassContent = 0x00000004
+	// FAN_CLASS_PRE_CONTENT
+	FanClassPreContent = 0x00000008
 
-	FAN_ALL_INIT_FLAGS = FAN_CLOEXEC |
-		FAN_NONBLOCK |
-		FAN_ALL_CLASS_BITS |
-		FAN_UNLIMITED_QUEUE |
-		FAN_UNLIMITED_MARKS
+	// FAN_ALL_CLASS_BITS
+	FanAllClassBits = FanClassNotif |
+		FanClassContent |
+		FanClassPreContent
+
+	// FAN_UNLIMITED_QUEUE
+	FanUnlimitedQueue = 0x00000010
+	// FAN_UNLIMITED_MARKS
+	FanUnlimitedMarks = 0x00000020
+
+	// FAN_ALL_INIT_FLAGS
+	FanAllInitFlags = FanCloExec |
+		FanNonBlock |
+		FanAllClassBits |
+		FanUnlimitedQueue |
+		FanUnlimitedMarks
 )
 
 // Flags used for the Mark Method
 const (
 	/* flags used for fanotify_modify_mark() */
-	FAN_MARK_ADD                 = 0x00000001
-	FAN_MARK_REMOVE              = 0x00000002
-	FAN_MARK_DONT_FOLLOW         = 0x00000004
-	FAN_MARK_ONLYDIR             = 0x00000008
-	FAN_MARK_MOUNT               = 0x00000010
-	FAN_MARK_IGNORED_MASK        = 0x00000020
-	FAN_MARK_IGNORED_SURV_MODIFY = 0x00000040
-	FAN_MARK_FLUSH               = 0x00000080
 
-	FAN_ALL_MARK_FLAGS = FAN_MARK_ADD |
-		FAN_MARK_REMOVE |
-		FAN_MARK_DONT_FOLLOW |
-		FAN_MARK_ONLYDIR |
-		FAN_MARK_MOUNT |
-		FAN_MARK_IGNORED_MASK |
-		FAN_MARK_IGNORED_SURV_MODIFY |
-		FAN_MARK_FLUSH
+	// FAN_MARK_ADD
+	FanMarkAdd = 0x00000001
+	// FAN_MARK_REMOVE
+	FanMarkRemove = 0x00000002
+	// FAN_MARK_DONT_FOLLOW
+	FanMarkDontFollow = 0x00000004
+	// FAN_MARK_ONLYDIR
+	FanMarkOnlyDir = 0x00000008
+	// FAN_MARK_MOUNT
+	FanMarkMount = 0x00000010
+	// FAN_MARK_IGNORED_MASK
+	FanMarkIgnoredMask = 0x00000020
+	// FAN_MARK_IGNORED_SURV_MODIFY
+	FanMarkIgnoredSurvModify = 0x00000040
+	// FAN_MARK_FLUSH
+	FanMarkFlush = 0x00000080
+
+	// FAN_ALL_MARK_FLAGS
+	FanAllMarkFlags = FanMarkAdd |
+		FanMarkRemove |
+		FanMarkDontFollow |
+		FanMarkOnlyDir |
+		FanMarkMount |
+		FanMarkIgnoredMask |
+		FanMarkIgnoredSurvModify |
+		FanMarkFlush
 )
 
 // Event types
 const (
-	FAN_ACCESS        = 0x00000001 /* File was accessed */
-	FAN_MODIFY        = 0x00000002 /* File was modified */
-	FAN_CLOSE_WRITE   = 0x00000008 /* Writtable file closed */
-	FAN_CLOSE_NOWRITE = 0x00000010 /* Unwrittable file closed */
-	FAN_OPEN          = 0x00000020 /* File was opened */
+	// FAN_ACCESS
+	FanAccess = 0x00000001 /* File was accessed */
+	// FAN_MODIFY
+	FanModify = 0x00000002 /* File was modified */
+	// FAN_CLOSE_WRITE
+	FanCloseWrite = 0x00000008 /* Writtable file closed */
+	// FAN_CLOSE_NOWRITE
+	FanCloseNoWrite = 0x00000010 /* Unwrittable file closed */
+	// FAN_OPEN
+	FanOpen = 0x00000020 /* File was opened */
 
-	FAN_Q_OVERFLOW = 0x00004000 /* Event queued overflowed */
+	// FAN_Q_OVERFLOW
+	FanQOverflow = 0x00004000 /* Event queued overflowed */
 
-	FAN_OPEN_PERM   = 0x00010000 /* File open in perm check */
-	FAN_ACCESS_PERM = 0x00020000 /* File accessed in perm check */
+	// FAN_OPEN_PERM
+	FanOpenPerm = 0x00010000 /* File open in perm check */
+	// FAN_ACCESS_PERM
+	FanAccessPerm = 0x00020000 /* File accessed in perm check */
 
-	FAN_ONDIR = 0x40000000 /* event occurred against dir */
+	// FAN_ONDIR
+	FanOnDir = 0x40000000 /* event occurred against dir */
 
-	FAN_EVENT_ON_CHILD = 0x08000000 /* interested in child events */
+	// FAN_EVENT_ON_CHILD
+	FanEventOnChild = 0x08000000 /* interested in child events */
 
 	/* helper events */
-	FAN_CLOSE = FAN_CLOSE_WRITE | FAN_CLOSE_NOWRITE /* close */
+
+	// FAN_CLOSE
+	FanClose = FanCloseWrite | FanCloseNoWrite /* close */
 
 	/*
-	 * All of the events - we build the list by hand so that we can add flags in
-	 * the future and not break backward compatibility.  Apps will get only the
-	 * events that they originally wanted.  Be sure to add new events here!
-	 */
-	FAN_ALL_EVENTS = FAN_ACCESS |
-		FAN_MODIFY |
-		FAN_CLOSE |
-		FAN_OPEN
+		All of the events - we build the list by hand so that we can add flags in
+		the future and not break backward compatibility.  Apps will get only the
+		events that they originally wanted. Be sure to add new events here!
+	*/
 
-		/*
-		 * All events which require a permission response from userspace
-		 */
-	FAN_ALL_PERM_EVENTS = FAN_OPEN_PERM |
-		FAN_ACCESS_PERM
+	// FAN_ALL_EVENTS
+	FanAllEvents = FanAccess |
+		FanModify |
+		FanClose |
+		FanOpen
 
-	FAN_ALL_OUTGOING_EVENTS = FAN_ALL_EVENTS |
-		FAN_ALL_PERM_EVENTS |
-		FAN_Q_OVERFLOW
+	/*
+		All events which require a permission response from userspace
+	*/
 
-	FANOTIFY_METADATA_VERSION = 3
+	// FAN_ALL_PERM_EVENTS
+	FanAllPermEvents = FanOpenPerm |
+		FanAccessPerm
 
-	FAN_ALLOW = 0x01
-	FAN_DENY  = 0x02
-	FAN_NOFD  = -1
+	// FAN_ALL_OUTGOING_EVENTS
+	FanAllOutgoingEvents = FanAllEvents |
+		FanAllPermEvents |
+		FanQOverflow
+
+	// FANOTIFY_METADATA_VERSION
+	FanotifyMetadataVersion = 3
+
+	// FAN_ALLOW
+	FanAllow = 0x01
+	// FAN_DENY
+	FanDeny = 0x02
+	// FAN_NOFD
+	FanNoFD = -1
 )
 
 // Internal eventMetadata struct, used for fanotify comm
@@ -164,6 +206,7 @@ func Initialize(faflags, openflags int) (*NotifyFD, error) {
 	}
 
 	f := os.NewFile(fd, "")
+
 	return &NotifyFD{f, bufio.NewReader(f)}, err
 }
 
@@ -181,16 +224,20 @@ func (nd *NotifyFD) GetEvent() (*EventMetadata, error) {
 	return res, nil
 }
 
-// Response sends an allow message back to fanotify, used for permission checks
-// If allow is set to true, access is granted
-func (nd *NotifyFD) Response(ev *EventMetadata, allow bool) error {
+// ResponseAllow sends an allow message back to fanotify, used for permission checks
+func (nd *NotifyFD) ResponseAllow(ev *EventMetadata) error {
 	resp := &response{Fd: int32(ev.File.Fd())}
 
-	if allow {
-		resp.Response = FAN_ALLOW
-	} else {
-		resp.Response = FAN_DENY
-	}
+	resp.Response = FanAllow
+
+	return binary.Write(nd.f, binary.LittleEndian, resp)
+}
+
+// ResponseDeny sends a deny message back to fanotify, used for permission checks
+func (nd *NotifyFD) ResponseDeny(ev *EventMetadata) error {
+	resp := &response{Fd: int32(ev.File.Fd())}
+
+	resp.Response = FanDeny
 
 	return binary.Write(nd.f, binary.LittleEndian, resp)
 }

@@ -22,9 +22,12 @@ import (
 
 // Mark implements Add/Delete/Modify an Fanotify mark
 func (nd *NotifyFD) Mark(flags int, mask uint64, dfd int, path string) error {
-	_, _, errno := unix.Syscall6(unix.SYS_FANOTIFY_MARK, uintptr(nd.f.Fd()), uintptr(flags), uintptr(mask), uintptr(dfd), uintptr(unsafe.Pointer(unix.StringBytePtr(path))), 0)
+	bptr, err := unix.BytePtrFromString(path)
+	if err != nil {
+		return err
+	}
 
-	var err error
+	_, _, errno := unix.Syscall6(unix.SYS_FANOTIFY_MARK, nd.f.Fd(), uintptr(flags), uintptr(mask), uintptr(dfd), uintptr(unsafe.Pointer(bptr)), 0)
 	if errno != 0 {
 		err = errno
 	}
