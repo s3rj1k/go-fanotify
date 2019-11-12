@@ -15,13 +15,14 @@
 package fanotify
 
 import (
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
-// Add/Delete/Modify an Fanotify mark
+// Mark implements Add/Delete/Modify an Fanotify mark
 func (nd *NotifyFD) Mark(flags int, mask uint64, dfd int, path string) error {
-	_, _, errno := syscall.Syscall6(syscall.SYS_FANOTIFY_MARK, uintptr(nd.f.Fd()), uintptr(flags), uintptr(mask), uintptr(mask>>32), uintptr(dfd), uintptr(unsafe.Pointer(syscall.StringBytePtr(path))))
+	_, _, errno := unix.Syscall6(unix.SYS_FANOTIFY_MARK, uintptr(nd.f.Fd()), uintptr(flags), uintptr(mask), uintptr(mask>>32), uintptr(dfd), uintptr(unsafe.Pointer(unix.StringBytePtr(path))))
 
 	var err error
 	if errno != 0 {
@@ -30,4 +31,4 @@ func (nd *NotifyFD) Mark(flags int, mask uint64, dfd int, path string) error {
 
 	return err
 }
-
+ 

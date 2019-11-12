@@ -12,14 +12,15 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-// The fanotify package provides a simple fanotify api
+// Package fanotify package provides a simple fanotify api
 package fanotify
 
 import (
 	"bufio"
 	"encoding/binary"
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // Flags used as first parameter to Initiliaze
@@ -133,7 +134,7 @@ type response struct {
 	Response uint32
 }
 
-// Event struct returned from NotifyFD.GetEvent
+// EventMetadata is a struct returned from NotifyFD.GetEvent
 //
 // The File member needs to be Closed after usage, to prevent
 // an Fd leak
@@ -147,15 +148,15 @@ type EventMetadata struct {
 	Pid         int32
 }
 
-// A notify handle, used by all notify functions
+// NotifyFD a notify handle, used by all notify functions
 type NotifyFD struct {
 	f *os.File
 	r *bufio.Reader
 }
 
-// Initialize the notify support
+// Initialize inits the notify support
 func Initialize(faflags, openflags int) (*NotifyFD, error) {
-	fd, _, errno := syscall.Syscall(syscall.SYS_FANOTIFY_INIT, uintptr(faflags), uintptr(openflags), uintptr(0))
+	fd, _, errno := unix.Syscall(unix.SYS_FANOTIFY_INIT, uintptr(faflags), uintptr(openflags), uintptr(0))
 
 	var err error
 	if errno != 0 {
@@ -166,7 +167,7 @@ func Initialize(faflags, openflags int) (*NotifyFD, error) {
 	return &NotifyFD{f, bufio.NewReader(f)}, err
 }
 
-// Get an event from the fanotify handle
+// GetEvent returns an event from the fanotify handle
 func (nd *NotifyFD) GetEvent() (*EventMetadata, error) {
 	ev := &eventMetadata{}
 
@@ -180,7 +181,7 @@ func (nd *NotifyFD) GetEvent() (*EventMetadata, error) {
 	return res, nil
 }
 
-// Send an allow message back to fanotify, used for permission checks
+// Response sends an allow message back to fanotify, used for permission checks
 // If allow is set to true, access is granted
 func (nd *NotifyFD) Response(ev *EventMetadata, allow bool) error {
 	resp := &response{Fd: int32(ev.File.Fd())}
@@ -193,4 +194,3 @@ func (nd *NotifyFD) Response(ev *EventMetadata, allow bool) error {
 
 	return binary.Write(nd.f, binary.LittleEndian, resp)
 }
-
