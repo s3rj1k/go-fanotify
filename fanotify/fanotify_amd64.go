@@ -12,6 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+// Package fanotify package provides a simple fanotify API
 package fanotify
 
 import (
@@ -27,7 +28,15 @@ func (nd *NotifyFD) Mark(flags int, mask uint64, dfd int, path string) error {
 		return err
 	}
 
-	_, _, errno := unix.Syscall6(unix.SYS_FANOTIFY_MARK, nd.f.Fd(), uintptr(flags), uintptr(mask), uintptr(dfd), uintptr(unsafe.Pointer(bptr)), 0)
+	_, _, errno := unix.Syscall6(
+		unix.SYS_FANOTIFY_MARK,
+		nd.f.Fd(),
+		uintptr(flags),
+		uintptr(mask),
+		uintptr(dfd),
+		uintptr(unsafe.Pointer(bptr)),
+		0,
+	)
 	if errno != 0 {
 		err = errno
 	}

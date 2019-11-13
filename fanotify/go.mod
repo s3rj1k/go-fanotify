@@ -1,5 +1,5 @@
-module github.com/docker-slim/docker-slim/tree/master/pkg/third_party/madmo/fanotify
+module github.com/s3rj1k/go-fanotify/fanotify
 
 go 1.13
 
-require golang.org/x/sys v0.0.0-20191110163157-d32e6e3b99c4
+require golang.org/x/sys v0.0.0-20191113165036-4c7a9d0fe056
