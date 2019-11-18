@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Mark implements Add/Delete/Modify an Fanotify mark
+// Mark implements Add/Delete/Modify for a fanotify mark
 func (nd *NotifyFD) Mark(flags int, mask uint64, dfd int, path string) error {
 	bptr, err := unix.BytePtrFromString(path)
 	if err != nil {

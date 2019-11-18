@@ -56,13 +56,13 @@ type EventMetadata struct {
 	PID            int32
 }
 
-// NotifyFD a notify handle, used by all notify functions
+// NotifyFD is a notify handle, used by all fanotify functions
 type NotifyFD struct {
 	f *os.File
 	r *bufio.Reader
 }
 
-// Initialize inits the notify support
+// Initialize initializes the fanotify support
 func Initialize(faFlags, openFlags int) (*NotifyFD, error) {
 	fd, _, errno := unix.Syscall(
 		unix.SYS_FANOTIFY_INIT,
