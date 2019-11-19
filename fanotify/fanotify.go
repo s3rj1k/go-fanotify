@@ -1,129 +1,139 @@
-// Copyright (c) 2012, Moritz Bitsch <moritzbitsch@googlemail.com>
-//
-// Permission to use, copy, modify, and/or distribute this software for any
-// purpose with or without fee is hereby granted, provided that the above
-// copyright notice and this permission notice appear in all copies.
-//
-// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
 // Package fanotify package provides a simple fanotify API
 package fanotify
 
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 
 	"golang.org/x/sys/unix"
 )
 
-// Internal eventMetadata struct, used for fanotify communication,
-// 'fanotify_event_metadata' in fanotify.h
-type eventMetadata struct {
-	EventLength    uint32
-	Version        uint8
-	Reserved       uint8
-	MetadataLength uint16
-	Mask           uint64
-	Fd             int32
-	PID            int32
-}
+// Procfs constants
+const (
+	ProcFsFdInfo = "/proc/self/fd"
+)
 
-// Internal response struct, used for fanotify communication,
-// 'fanotify_response' in fanotify.h
-type response struct {
-	Fd       int32
-	Response uint32
-}
-
-// EventMetadata is a struct returned from NotifyFD.GetEvent
-//
-// The File member needs to be Closed after usage,
-// to prevent an FD leak
+// EventMetadata is a struct returned from 'NotifyFD.GetEvent'.
 type EventMetadata struct {
-	EventLength    uint32
-	Version        uint8
-	Reserved       uint8
-	MetadataLength uint16
-	Mask           uint64
-	File           *os.File
-	PID            int32
+	unix.FanotifyEventMetadata
 }
 
-// NotifyFD is a notify handle, used by all fanotify functions
-type NotifyFD struct {
-	f *os.File
-	r *bufio.Reader
+// GetPID return PID from event metadata.
+func (metadata EventMetadata) GetPID() int {
+	return int(metadata.Pid)
 }
 
-// Initialize initializes the fanotify support
-func Initialize(faFlags, openFlags int) (*NotifyFD, error) {
-	fd, _, errno := unix.Syscall(
-		unix.SYS_FANOTIFY_INIT,
-		uintptr(faFlags),
-		uintptr(openFlags),
-		uintptr(0),
+// GetPath returns path to file for FD inside event metadata.
+func (metadata EventMetadata) GetPath() (string, error) {
+	path, err := os.Readlink(
+		filepath.Join(
+			ProcFsFdInfo,
+			strconv.FormatUint(
+				uint64(metadata.Fd),
+				10,
+			),
+		),
 	)
-
-	var err error
-	if errno != 0 {
-		err = errno
+	if err != nil {
+		return "", fmt.Errorf("fanotify: %w", err)
 	}
 
-	f := os.NewFile(fd, "")
+	return path, nil
+}
+
+// MatchMask returns 'true' when event metadata matches specified mask.
+func (metadata EventMetadata) MatchMask(mask int) bool {
+	return (metadata.Mask & uint64(mask)) == uint64(mask)
+}
+
+// File returns pointer to os.File created from event metadata supplied FD.
+// File needs to be Closed after usage, to prevent an FD leak.
+func (metadata EventMetadata) File() *os.File {
+	return os.NewFile(uintptr(metadata.Fd), "")
+}
+
+// NotifyFD is a notify file handle, used by all fanotify functions.
+type NotifyFD struct {
+	fd   int
+	file *os.File
+}
+
+// Initialize initializes the fanotify support.
+func Initialize(fanotifyFlags uint, openFlags int) (*NotifyFD, error) {
+	fd, err := unix.FanotifyInit(fanotifyFlags, uint(openFlags))
+	if err != nil {
+		return nil, fmt.Errorf("fanotify: %w", err)
+	}
 
 	return &NotifyFD{
-		f,
-		bufio.NewReader(f),
+		fd:   fd,
+		file: os.NewFile(uintptr(fd), ""),
 	}, err
 }
 
-// GetEvent returns an event from the fanotify handle
-func (nd *NotifyFD) GetEvent() (*EventMetadata, error) {
-	ev := new(eventMetadata)
-
-	err := binary.Read(nd.r, binary.LittleEndian, ev)
-	if err != nil {
-		return nil, err
+// Mark implements Add/Delete/Modify for a fanotify mark.
+func (handle *NotifyFD) Mark(flags uint, mask uint64, dirFd int, path string) error {
+	if err := unix.FanotifyMark(handle.fd, flags, mask, dirFd, path); err != nil {
+		return fmt.Errorf("fanotify: %w", err)
 	}
 
-	return &EventMetadata{
-		ev.EventLength,
-		ev.Version,
-		ev.Reserved,
-		ev.MetadataLength,
-		ev.Mask,
-		os.NewFile(uintptr(ev.Fd), ""),
-		ev.PID,
-	}, nil
+	return nil
 }
 
-// ResponseAllow sends an allow message back to fanotify, used for permission checks
-func (nd *NotifyFD) ResponseAllow(ev *EventMetadata) error {
-	return binary.Write(
-		nd.f,
+// GetEvent returns an event from the fanotify handle.
+func (handle *NotifyFD) GetEvent(skipPIDs ...int) (*EventMetadata, error) {
+	event := new(EventMetadata)
+
+	err := binary.Read(bufio.NewReader(handle.file), binary.LittleEndian, event)
+	if err != nil {
+		return nil, fmt.Errorf("fanotify: %w", err)
+	}
+
+	if event.Vers != FANOTIFY_METADATA_VERSION {
+		return nil, fmt.Errorf("fanotify: wrong metadata version")
+	}
+
+	for i := range skipPIDs {
+		if int(event.Pid) == skipPIDs[i] {
+			return nil, nil
+		}
+	}
+
+	return event, nil
+}
+
+// ResponseAllow sends an allow message back to fanotify, used for permission checks.
+func (handle *NotifyFD) ResponseAllow(ev *EventMetadata) error {
+	if err := binary.Write(
+		handle.file,
 		binary.LittleEndian,
-		&response{
-			Fd:       int32(ev.File.Fd()),
+		&unix.FanotifyResponse{
+			Fd:       ev.Fd,
 			Response: FAN_ALLOW,
 		},
-	)
+	); err != nil {
+		return fmt.Errorf("fanotify: %w", err)
+	}
+
+	return nil
 }
 
-// ResponseDeny sends a deny message back to fanotify, used for permission checks
-func (nd *NotifyFD) ResponseDeny(ev *EventMetadata) error {
-	return binary.Write(
-		nd.f,
+// ResponseDeny sends a deny message back to fanotify, used for permission checks.
+func (handle *NotifyFD) ResponseDeny(ev *EventMetadata) error {
+	if err := binary.Write(
+		handle.file,
 		binary.LittleEndian,
-		&response{
-			Fd:       int32(ev.File.Fd()),
+		&unix.FanotifyResponse{
+			Fd:       ev.Fd,
 			Response: FAN_DENY,
 		},
-	)
+	); err != nil {
+		return fmt.Errorf("fanotify: %w", err)
+	}
+
+	return nil
 }

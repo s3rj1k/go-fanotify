@@ -4,23 +4,17 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"strconv"
 
 	"github.com/s3rj1k/go-fanotify/fanotify"
 	"golang.org/x/sys/unix"
 )
 
-const (
-	procFsFdInfo = "/proc/self/fd"
-)
-
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	nd, err := fanotify.Initialize(fanotify.FAN_CLASS_NOTIF|fanotify.FAN_UNLIMITED_QUEUE, os.O_RDONLY|unix.O_LARGEFILE)
+	notify, err := fanotify.Initialize(fanotify.FAN_CLASS_NOTIF|fanotify.FAN_UNLIMITED_QUEUE, os.O_RDONLY|unix.O_LARGEFILE)
 	if err != nil {
-		log.Fatalf("fanotify: %v\n", err)
+		log.Fatalf("%v\n", err)
 	}
 
 	var mountpoint string
@@ -31,7 +25,7 @@ func main() {
 		mountpoint = val
 	}
 
-	if err = nd.Mark(
+	if err = notify.Mark(
 		fanotify.FAN_MARK_ADD|
 			fanotify.FAN_MARK_MOUNT,
 		fanotify.FAN_MODIFY|
@@ -39,51 +33,39 @@ func main() {
 		-1,
 		mountpoint,
 	); err != nil {
-		log.Fatalf("fanotify: %v\n", err)
+		log.Fatalf("%v\n", err)
 	}
 
-	f := func(nd *fanotify.NotifyFD) (string, error) {
-		data, err := nd.GetEvent()
+	f := func(notify *fanotify.NotifyFD) (string, error) {
+		data, err := notify.GetEvent(os.Getpid())
 		if err != nil {
-			return "", fmt.Errorf("fanotify: %w", err)
+			return "", fmt.Errorf("%w", err)
 		}
 
-		defer data.File.Close()
+		defer data.File().Close()
 
-		if data.Version != fanotify.FANOTIFY_METADATA_VERSION {
-			return "", fmt.Errorf("fanotify: wrong metadata version")
+		if data == nil {
+			return "", nil
 		}
 
-		if int(data.PID) == os.Getpid() {
-			return "", fmt.Errorf("fanotify: self PID")
-		}
-
-		path, err := os.Readlink(
-			filepath.Join(
-				procFsFdInfo,
-				strconv.FormatUint(
-					uint64(data.File.Fd()),
-					10,
-				),
-			),
-		)
+		path, err := data.GetPath()
 		if err != nil {
-			return "", fmt.Errorf("fanotify: %w", err)
+			return "", err
 		}
 
-		if (data.Mask & fanotify.FAN_MODIFY) == fanotify.FAN_MODIFY {
-			return fmt.Sprintf("PID:%d %s", data.PID, path), nil
+		if data.MatchMask(fanotify.FAN_MODIFY) {
+			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
 		}
 
-		if (data.Mask & fanotify.FAN_CLOSE_WRITE) == fanotify.FAN_CLOSE_WRITE {
-			return fmt.Sprintf("PID:%d %s", data.PID, path), nil
+		if data.MatchMask(fanotify.FAN_CLOSE_WRITE) {
+			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
 		}
 
 		return "", fmt.Errorf("fanotify: unknown event")
 	}
 
 	for {
-		if str, err := f(nd); err == nil && len(str) > 0 {
+		if str, err := f(notify); err == nil && len(str) > 0 {
 			fmt.Printf("%s\n", str)
 		}
 	}
