@@ -28,9 +28,13 @@ func (metadata *EventMetadata) GetPID() int {
 	return int(metadata.Pid)
 }
 
-// Close is used to close event Fd.
+// Close is used to Close event Fd, use it to prevent Fd leak.
 func (metadata *EventMetadata) Close() error {
-	return fmt.Errorf("fanotify: %w", unix.Close(int(metadata.Fd)))
+	if err := unix.Close(int(metadata.Fd)); err != nil {
+		return fmt.Errorf("fanotify: failed to close Fd: %w", err)
+	}
+
+	return nil
 }
 
 // GetPath returns path to file for FD inside event metadata.
@@ -56,8 +60,8 @@ func (metadata *EventMetadata) MatchMask(mask int) bool {
 	return (metadata.Mask & uint64(mask)) == uint64(mask)
 }
 
-// File returns pointer to os.File created from event metadata supplied FD.
-// File needs to be Closed after usage, to prevent an FD leak.
+// File returns pointer to os.File created from event metadata supplied Fd.
+// File needs to be Closed after usage, to prevent an Fd leak.
 func (metadata *EventMetadata) File() *os.File {
 	return os.NewFile(uintptr(metadata.Fd), "")
 }
@@ -73,7 +77,7 @@ type NotifyFD struct {
 func Initialize(fanotifyFlags uint, openFlags int) (*NotifyFD, error) {
 	fd, err := unix.FanotifyInit(fanotifyFlags, uint(openFlags))
 	if err != nil {
-		return nil, fmt.Errorf("fanotify: %w", err)
+		return nil, fmt.Errorf("fanotify: init error, %w", err)
 	}
 
 	file := os.NewFile(uintptr(fd), "")
@@ -89,7 +93,7 @@ func Initialize(fanotifyFlags uint, openFlags int) (*NotifyFD, error) {
 // Mark implements Add/Delete/Modify for a fanotify mark.
 func (handle *NotifyFD) Mark(flags uint, mask uint64, dirFd int, path string) error {
 	if err := unix.FanotifyMark(handle.Fd, flags, mask, dirFd, path); err != nil {
-		return fmt.Errorf("fanotify: %w", err)
+		return fmt.Errorf("fanotify: mark error, %w", err)
 	}
 
 	return nil
@@ -99,14 +103,13 @@ func (handle *NotifyFD) Mark(flags uint, mask uint64, dirFd int, path string) er
 func (handle *NotifyFD) GetEvent(skipPIDs ...int) (*EventMetadata, error) {
 	event := new(EventMetadata)
 
-	err := binary.Read(handle.Rd, binary.LittleEndian, event)
-	if err != nil {
-		return nil, fmt.Errorf("fanotify: %w", err)
+	if err := binary.Read(handle.Rd, binary.LittleEndian, event); err != nil {
+		return nil, fmt.Errorf("fanotify: event error, %w", err)
 	}
 
 	if event.Vers != FANOTIFY_METADATA_VERSION {
-		if err = unix.Close(int(event.Fd)); err != nil {
-			return nil, fmt.Errorf("fanotify: wrong metadata version, failed to close Fd: %w", err)
+		if err := event.Close(); err != nil {
+			return nil, err
 		}
 
 		return nil, fmt.Errorf("fanotify: wrong metadata version")
@@ -114,11 +117,7 @@ func (handle *NotifyFD) GetEvent(skipPIDs ...int) (*EventMetadata, error) {
 
 	for i := range skipPIDs {
 		if int(event.Pid) == skipPIDs[i] {
-			if err = unix.Close(int(event.Fd)); err != nil {
-				return nil, fmt.Errorf("fanotify: failed to close Fd: %w", err)
-			}
-
-			return nil, nil
+			return nil, event.Close()
 		}
 	}
 
@@ -135,7 +134,7 @@ func (handle *NotifyFD) ResponseAllow(ev *EventMetadata) error {
 			Response: FAN_ALLOW,
 		},
 	); err != nil {
-		return fmt.Errorf("fanotify: %w", err)
+		return fmt.Errorf("fanotify: response error, %w", err)
 	}
 
 	return nil
@@ -151,7 +150,7 @@ func (handle *NotifyFD) ResponseDeny(ev *EventMetadata) error {
 			Response: FAN_DENY,
 		},
 	); err != nil {
-		return fmt.Errorf("fanotify: %w", err)
+		return fmt.Errorf("fanotify: response error, %w", err)
 	}
 
 	return nil
