@@ -12,7 +12,15 @@ import (
 func main() {
 	log.SetFlags(log.Lshortfile)
 
-	notify, err := fanotify.Initialize(fanotify.FAN_CLASS_NOTIF|fanotify.FAN_UNLIMITED_QUEUE, os.O_RDONLY|unix.O_LARGEFILE)
+	notify, err := fanotify.Initialize(
+		fanotify.FAN_CLOEXEC|
+			fanotify.FAN_CLASS_NOTIF|
+			fanotify.FAN_UNLIMITED_QUEUE|
+			fanotify.FAN_UNLIMITED_MARKS,
+		os.O_RDONLY|
+			unix.O_LARGEFILE|
+			unix.O_CLOEXEC,
+	)
 	if err != nil {
 		log.Fatalf("%v\n", err)
 	}
@@ -30,7 +38,7 @@ func main() {
 			fanotify.FAN_MARK_MOUNT,
 		fanotify.FAN_MODIFY|
 			fanotify.FAN_CLOSE_WRITE,
-		-1,
+		fanotify.AT_FDCWD,
 		mountpoint,
 	); err != nil {
 		log.Fatalf("%v\n", err)
@@ -42,22 +50,18 @@ func main() {
 			return "", fmt.Errorf("%w", err)
 		}
 
-		defer data.File().Close()
-
 		if data == nil {
 			return "", nil
 		}
+
+		defer data.Close()
 
 		path, err := data.GetPath()
 		if err != nil {
 			return "", err
 		}
 
-		if data.MatchMask(fanotify.FAN_MODIFY) {
-			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
-		}
-
-		if data.MatchMask(fanotify.FAN_CLOSE_WRITE) {
+		if data.MatchMask(fanotify.FAN_CLOSE_WRITE) || data.MatchMask(fanotify.FAN_MODIFY) {
 			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
 		}
 
@@ -65,8 +69,13 @@ func main() {
 	}
 
 	for {
-		if str, err := f(notify); err == nil && len(str) > 0 {
+		str, err := f(notify)
+		if err == nil && len(str) > 0 {
 			fmt.Printf("%s\n", str)
+		}
+
+		if err != nil {
+			fmt.Printf("error: %v\n", err)
 		}
 	}
 }

@@ -1,8 +1,8 @@
-// Package fanotify package provides a simple fanotify API
+// Package fanotify package provides a simple fanotify API.
 package fanotify
 
 /*
-	Headers information are taken from fanotify.h
+	Headers information are taken from 'fanotify.h', 'fcntl.h'.
 */
 
 // Event types that user-space can register for.
@@ -73,10 +73,12 @@ const (
 	FAN_MARK_FILESYSTEM = 0x00000100
 )
 
+// Fanotify metadata version.
 const (
 	FANOTIFY_METADATA_VERSION = 3
 )
 
+// Fanotify event type.
 const (
 	FAN_EVENT_INFO_TYPE_FID = 1
 )
@@ -88,7 +90,12 @@ const (
 	FAN_AUDIT = 0x10 // Bit mask to create audit record for result
 )
 
-// No fd set in event
+// No fd set in event.
 const (
 	FAN_NOFD = -1
+)
+
+// Special value used to indicate openat should use the current working directory.
+const (
+	AT_FDCWD = -100
 )
