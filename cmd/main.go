@@ -13,10 +13,10 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	notify, err := fanotify.Initialize(
-		fanotify.FAN_CLOEXEC|
-			fanotify.FAN_CLASS_NOTIF|
-			fanotify.FAN_UNLIMITED_QUEUE|
-			fanotify.FAN_UNLIMITED_MARKS,
+		unix.FAN_CLOEXEC|
+			unix.FAN_CLASS_NOTIF|
+			unix.FAN_UNLIMITED_QUEUE|
+			unix.FAN_UNLIMITED_MARKS,
 		os.O_RDONLY|
 			unix.O_LARGEFILE|
 			unix.O_CLOEXEC,
@@ -34,11 +34,11 @@ func main() {
 	}
 
 	if err = notify.Mark(
-		fanotify.FAN_MARK_ADD|
-			fanotify.FAN_MARK_MOUNT,
-		fanotify.FAN_MODIFY|
-			fanotify.FAN_CLOSE_WRITE,
-		fanotify.AT_FDCWD,
+		unix.FAN_MARK_ADD|
+			unix.FAN_MARK_MOUNT,
+		unix.FAN_MODIFY|
+			unix.FAN_CLOSE_WRITE,
+		unix.AT_FDCWD,
 		mountpoint,
 	); err != nil {
 		log.Fatalf("%v\n", err)
@@ -61,7 +61,7 @@ func main() {
 			return "", err
 		}
 
-		if data.MatchMask(fanotify.FAN_CLOSE_WRITE) || data.MatchMask(fanotify.FAN_MODIFY) {
+		if data.MatchMask(unix.FAN_CLOSE_WRITE) || data.MatchMask(unix.FAN_MODIFY) {
 			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
 		}
 

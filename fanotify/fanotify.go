@@ -107,7 +107,7 @@ func (handle *NotifyFD) GetEvent(skipPIDs ...int) (*EventMetadata, error) {
 		return nil, fmt.Errorf("fanotify: event error, %w", err)
 	}
 
-	if event.Vers != FANOTIFY_METADATA_VERSION {
+	if event.Vers != unix.FANOTIFY_METADATA_VERSION {
 		if err := event.Close(); err != nil {
 			return nil, err
 		}
@@ -131,7 +131,7 @@ func (handle *NotifyFD) ResponseAllow(ev *EventMetadata) error {
 		binary.LittleEndian,
 		&unix.FanotifyResponse{
 			Fd:       ev.Fd,
-			Response: FAN_ALLOW,
+			Response: unix.FAN_ALLOW,
 		},
 	); err != nil {
 		return fmt.Errorf("fanotify: response error, %w", err)
@@ -147,7 +147,7 @@ func (handle *NotifyFD) ResponseDeny(ev *EventMetadata) error {
 		binary.LittleEndian,
 		&unix.FanotifyResponse{
 			Fd:       ev.Fd,
-			Response: FAN_DENY,
+			Response: unix.FAN_DENY,
 		},
 	); err != nil {
 		return fmt.Errorf("fanotify: response error, %w", err)
