@@ -3,20 +3,31 @@ package fanotify
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
 
 // Procfs constants.
 const (
-	ProcFsFdInfo = "/proc/self/fd"
+	ProcFsFd     = "/proc/self/fd"
+	ProcFsFdInfo = "/proc/self/fdinfo"
 )
+
+// FdInfo describes '/proc/PID/fdinfo/%d'.
+type FdInfo struct {
+	Position int
+	Flags    int // octal
+	MountID  int
+}
 
 // EventMetadata is a struct returned from 'NotifyFD.GetEvent'.
 type EventMetadata struct {
@@ -41,7 +52,7 @@ func (metadata *EventMetadata) Close() error {
 func (metadata *EventMetadata) GetPath() (string, error) {
 	path, err := os.Readlink(
 		filepath.Join(
-			ProcFsFdInfo,
+			ProcFsFd,
 			strconv.FormatUint(
 				uint64(metadata.Fd),
 				10,
@@ -53,6 +64,65 @@ func (metadata *EventMetadata) GetPath() (string, error) {
 	}
 
 	return path, nil
+}
+
+// GetFdInfo returns parsed '/proc/self/fdinfo/%d' data.
+func (metadata *EventMetadata) GetFdInfo() (FdInfo, error) {
+	var out FdInfo
+
+	content, err := ioutil.ReadFile(
+		filepath.Join(
+			ProcFsFdInfo,
+			strconv.FormatUint(
+				uint64(metadata.Fd),
+				10,
+			),
+		),
+	)
+	if err != nil {
+		return out, fmt.Errorf("cnotifyd: procfs error, %w", err)
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+
+	for scanner.Scan() {
+		s := scanner.Text()
+
+		var i int64
+
+		switch {
+		case strings.HasPrefix(s, "pos:"):
+			if i, err = strconv.ParseInt(
+				strings.TrimSpace(strings.TrimPrefix(s, "pos:")), 10, 32,
+			); err != nil {
+				return out, fmt.Errorf("cnotifyd: procfs error, %w", err)
+			}
+
+			out.Position = int(i)
+		case strings.HasPrefix(s, "flags:"):
+			if i, err = strconv.ParseInt(
+				strings.TrimSpace(strings.TrimPrefix(s, "flags:")), 8, 32,
+			); err != nil {
+				return out, fmt.Errorf("cnotifyd: procfs error, %w", err)
+			}
+
+			out.Flags = int(i)
+		case strings.HasPrefix(s, "mnt_id:"):
+			if i, err = strconv.ParseInt(
+				strings.TrimSpace(strings.TrimPrefix(s, "mnt_id:")), 10, 32,
+			); err != nil {
+				return out, fmt.Errorf("cnotifyd: procfs error, %w", err)
+			}
+
+			out.MountID = int(i)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return out, fmt.Errorf("cnotifyd: procfs error, %w", err)
+	}
+
+	return out, nil
 }
 
 // MatchMask returns 'true' when event metadata matches specified mask.
