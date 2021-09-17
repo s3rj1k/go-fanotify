@@ -61,8 +61,18 @@ func main() {
 			return "", err
 		}
 
+		dataFile := data.File()
+		defer dataFile.Close()
+
+		fInfo, err := dataFile.Stat()
+		if err != nil {
+			return "", err
+		}
+
+		mTime := fInfo.ModTime()
+
 		if data.MatchMask(unix.FAN_CLOSE_WRITE) || data.MatchMask(unix.FAN_MODIFY) {
-			return fmt.Sprintf("PID:%d %s", data.GetPID(), path), nil
+			return fmt.Sprintf("PID:%d %s - %v", data.GetPID(), path, mTime), nil
 		}
 
 		return "", fmt.Errorf("fanotify: unknown event")
