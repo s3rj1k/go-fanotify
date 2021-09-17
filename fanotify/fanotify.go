@@ -131,7 +131,7 @@ func (metadata *EventMetadata) MatchMask(mask int) bool {
 }
 
 // File returns pointer to os.File created from event metadata supplied Fd.
-// File needs to be Closed after usage, to prevent an Fd leak.
+// File needs to be Closed after usage.
 func (metadata *EventMetadata) File() *os.File {
 	// The fd used in os.NewFile() can be garbage collected, making the fd
 	// used to create it invalid. This can be problematic, as now the fd can
