@@ -131,9 +131,27 @@ func (metadata *EventMetadata) MatchMask(mask int) bool {
 }
 
 // File returns pointer to os.File created from event metadata supplied Fd.
-// File needs to be Closed after usage, to prevent an Fd leak.
+// File needs to be Closed after usage.
 func (metadata *EventMetadata) File() *os.File {
-	return os.NewFile(uintptr(metadata.Fd), "")
+	// The fd used in os.NewFile() can be garbage collected, making the fd
+	// used to create it invalid. This can be problematic, as now the fd can
+	// be closed when the os.File created here is GC/Close() or when our
+	// function Close() is used too.
+	//
+	// To avoid having so many references to the same fd and have one close
+	// silently invalidate other users, we dup() the fd. This way, a new fd
+	// is created every time File() is used and this even works if File() is
+	// used multiple times (they never point to the same fd).
+	//
+	// For more details on when this can happen, see:
+	// https://pkg.go.dev/os#File.Fd, that is referenced from:
+	// https://pkg.go.dev/os#NewFile
+	fd, err := unix.Dup(int(metadata.Fd))
+	if err != nil {
+		return nil
+	}
+
+	return os.NewFile(uintptr(fd), "")
 }
 
 // NotifyFD is a notify file handle, used by all fanotify functions.
